@@ -7,7 +7,12 @@ the elemental particle of any song
 
 - [ ] flask - show songs
 - [ ] from db
-- [ ] scraper - supermusic, youtube, etc
+- [ ] scraper 
+	- songinator - scraptory for Song
+		- supermusic, youtube, etc
+	- persons groups
+		- wikipedia / google
+
 - [ ] opencv detector
 - [ ] shazam integration
 - [ ] online

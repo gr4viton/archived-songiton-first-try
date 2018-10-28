@@ -20,5 +20,5 @@ def hello_world():
 # def hello():
 #     return "Hello World!"
 
-# run(host='localhost', port=8080)
+app.run(host='localhost', port=8080)
 
