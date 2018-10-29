@@ -45,7 +45,9 @@ class  Node(object):
     node_names = ()
     node_unique = False
 
-    def __init__(self, store=()):
+    def __init__(self, store=(), node_name=None):
+        if node_name:
+            self.node_name = node_name
         if store:
             self.node.extend(store)       
 
@@ -58,12 +60,7 @@ class  Node(object):
 
     def __getattr__(self, value):
         '''acces inner node from nodes'''
-        if hasattr(self, value):
-            print('has')
-            return getattr(self, value)
-        else:
-            print('hasnot')
-            return self.node.by_node_name(node_name=value)
+        return self.node.by_node_name(node_name=value)
 
     @property
     def is_empty(self):
@@ -92,15 +89,21 @@ class NodeUtil(object):
 
         self.nodes = defaultdict(list)  # key=cls, value=list of nodes
         self.node_names = defaultdict(list)  # key=cls, value=list of node_name
+        self.refresh_where()
         assert self.is_correct
 
     @property
     def store(self):
-        return [node for node in self.nodes.values()]
+        return [node for node_list in self.nodes.values() for node in node_list if node_list]
 
     def by_node_name(self, node_name):
-        store = self.where[node_name]
-        return Node(store=nodes)
+        cls = self.where[node_name]
+        store = [
+            node
+            for node in self.nodes[cls]
+            if node_name in node.node.names  # needed as the node_names are not connected only to node class
+        ]
+        return Node(store=store, node_name=node_name)
 
     @property
     def names(self):
@@ -110,7 +113,8 @@ class NodeUtil(object):
     def _names(node):
         '''return all node names'''
         names = [node.node_name]
-        names.extend(node.node_names)
+        if node.node_names:
+            names.extend(node.node_names)
         return names
 
     @property
@@ -131,15 +135,19 @@ class NodeUtil(object):
         
     @staticmethod
     def _is_correct_name(name):
-        return all(
-            (
-                isinstance(name, str),
-                all(
-                    char.isalnum() or char == '_'
-                    for char in name
-                ),
-            )
-        )
+        if not isinstance(name, str):
+            return False
+        if not all(
+            [
+                char.isalnum() or char == '_'
+                for char in name
+            ]
+        ):
+            return False
+        return True
+
+    # def __iter__(
+        
 
     def append(self, node):
         assert self._is_correct(node)
@@ -148,6 +156,7 @@ class NodeUtil(object):
         for name in self._names(node):
             self.node_names[cls].append(name)
             self.refresh_where()
+        return self.base
 
     def refresh_where(self):
         where = {}
@@ -168,12 +177,36 @@ class NodeUtil(object):
             del self.nodes[cls]
             del self.node_names[cls]
             self.refresh_where()
+        
 
 
     def extend(self, nodes):
         for node in nodes:
             self.append(node)
+        return self.base
 
+    @property
+    def str(self):
+
+        base = str(self.base)
+        bas = base[:-1]
+        use_comma = bas[-1] != '('
+        node_reprs = []
+        for node in self.store:
+            if isinstance(node, Node):
+                repr_ = node.node.str
+            else:
+                repr_ = str(node)
+            node_reprs.append(repr_)
+
+        nodes = ', '.join(node_reprs)
+        mid = ''
+        if use_comma and nodes:
+            mid += ', '
+        if nodes:
+            mid += 'node.store=[{nodes}]'.format(nodes=nodes)
+        txt = '{bas}{mid})'.format(bas=bas, mid=mid)
+        return txt
 
 @attrs
 class Song(Node):
@@ -193,7 +226,18 @@ class Verse(Node):
 
     @property
     def node_names(self):
-        return [self.type.value]
+        if self.type.value:
+            return [self.type.value]
+
+@attrs
+class Tune(Node):
+    node_name = 'tune'
+    pass
+
+@attrs
+class Chord(Node):
+    node_name = 'chord'
+    name = attrib()
 
 if __name__ == "__main__":
     song = Song("dople")
@@ -204,9 +248,43 @@ if __name__ == "__main__":
     song.node.extend(verses)
 
     verses = song.verse
+    print('song.verse')
+    print(verses)
     verses = song.verse.every
+    print('song.verse.every')
+    print(verses)
     for verse in verses:
+        print(verse)
+        print(type(verse))
         print(verse.text)
 
-    choruses = song.chorus
+    choruses = song.chorus.every
         
+    print(choruses)
+
+
+    tunes = [
+        Tune().node.extend(
+            [
+                Chord('A'),
+                Chord('C'),
+            ]
+        ),
+        Tune().node.extend(
+            [
+                Chord('D'),
+                Chord('C'),
+            ]
+        ),
+    ]
+
+    print(tunes)
+
+    # song,verse.chorus
+    # song.verse.verse
+    # song.verse[1]
+
+    ver0 = song.verse.one
+    ver0.node.extend(tunes)
+    print(ver0.node.str)
+
