@@ -1,5 +1,16 @@
+'''example of usage:
+
+class Song(MixinNoded):
+    def verse_chorus(self):
+        self.verse
+
+s = Song(...)
+s.verse.chorus.every()
+
+s.verse = Node
+'''
 from attr import attrib, attrs
-from collections import defaultdict
+from collections import defaultdict, Sequence
 
 
 class MixinNode(object):
@@ -26,24 +37,13 @@ class MixinNode(object):
 
         
 
-'''example of usage:
 
-class Song(MixinNoded):
-    def verse_chorus(self):
-        self.verse
-
-s = Song(...)
-s.verse.chorus.every()
-
-s.verse = Node
-'''
-
-
-class  Node(object):
+class  Node(Sequence):
     _node = None
     node_name = None
     node_names = ()
     node_unique = False
+    _node_index = None
 
     def __init__(self, store=(), node_name=None):
         if node_name:
@@ -62,6 +62,11 @@ class  Node(object):
         '''acces inner node from nodes'''
         return self.node.by_node_name(node_name=value)
 
+    def __getitem__(self, index):
+        return self.node.store[index]
+    def __len__(self):
+        return len(self.node.store)
+
     @property
     def is_empty(self):
         return bool(self.node.store)
@@ -71,11 +76,20 @@ class  Node(object):
         return self.node.store
 
     @property
+    def last(self):
+    
+        if self.node.store:
+            return self.node.store[-1]
+        return None
+
+    @property
     def first(self):
     
         if self.node.store:
             return self.node.store[0]
         return None
+
+
 
     @property
     def one(self):
@@ -103,6 +117,8 @@ class NodeUtil(object):
             for node in self.nodes[cls]
             if node_name in node.node.names  # needed as the node_names are not connected only to node class
         ]
+        for index, node in enumerate(store):
+            node._node_index = index
         return Node(store=store, node_name=node_name)
 
     @property
@@ -151,6 +167,8 @@ class NodeUtil(object):
 
     def append(self, node):
         assert self._is_correct(node)
+
+        # assert check node_name collfirstisions
         cls = type(node)
         self.nodes[cls].append(node)
         for name in self._names(node):
@@ -208,10 +226,102 @@ class NodeUtil(object):
         txt = '{bas}{mid})'.format(bas=bas, mid=mid)
         return txt
 
+from enum import Enum
+class SongTextFormat(Enum):
+    plain_lyrics = 'plain_lyrics'
+
+class SongFactory(object):
+    @classmethod
+    def from_text(cls, text, song_text_format=None):
+        sform = song_text_format
+        if sform is None:
+            sform = cls.detect_song_text_format(text)
+        if sform is sform.plain_lyrics:
+            return cls.from_text_plain_lyrics(text)
+
+    @classmethod
+    def detect_song_text_format(cls, text):
+        return SongTextFormat.plain_lyrics
+    @classmethod
+    def from_text_plain_lyrics(cls, text):
+        verses = []
+        verse = []
+        for line in text.splitlines():
+            if line:
+                verse.append(line)
+            else:
+                verses.append(verse)
+                verse = []
+        else:
+            if verse:
+                verses.append(verse)
+
+        verses = [
+            VerseFactory.from_text(verse)
+            for verse in verses
+        ]
+
+
+class LineCategory(Enum):
+    lyrics = 'lyrics'
+    chords = 'chords'
+
+
+@attrs
+class Line(object):
+    
+    text = attrib()
+
+    @property
+    def chord_alpha_chars(self):
+        major_chars = {chr(num) for num in range(ord('a'), ord('h'))}
+        other = set('misu')
+        return major_chars + other
+
+
+    @property
+    def category(self):
+            """Anotate this way some number of verses, thsn create nn to categorise it for you and learn it on the annotated verses."""
+        alpha_chars = {char.lower() for char in set(self.text) if char.alpha}
+        cnt = sum([
+            1 for char in alpha_chars
+            if char not in set(chord_alpha_chars):
+        ])
+        if cnt*10 < alpha_chars:
+            return LineCategory.chords
+        else:
+            LineCategory.lyrics
+
+class VerseFactory(object):
+
+    @classmethod
+    def from_text(cls, text):
+        if not isinstance(text, Iterable):
+            if isinstance(text, str):
+                text = text.splitlines()
+
+        prev_chords = None
+
+        for line in text:
+            lin = Line(line)
+            if lin.category is lin.category.chords:
+                prev_chords = lin
+                continue
+
+            tune = Tune.from_lines([lin, prev_chords])
+            if prev_chords:
+                lin.node.append(prev_chords)
+                prev_chords = None
+
+
+
 @attrs
 class Song(Node):
     node_name = 'song'
     title = attrib()
+    factory = SongFactory
+    fill = None
+    shaper = None
 
 from enum import Enum
 class VerseType(Enum):
@@ -232,6 +342,12 @@ class Verse(Node):
 @attrs
 class Tune(Node):
     node_name = 'tune'
+    @classmethod
+    def from_lines(cls, lyric_line, chord_line):
+        ref = '(\[\w+\])'
+        re.match(ref, chord_line)
+        for chord_txt in regex.groups():
+            print(chord_txt)
     pass
 
 @attrs
@@ -239,7 +355,7 @@ class Chord(Node):
     node_name = 'chord'
     name = attrib()
 
-if __name__ == "__main__":
+def test_node():
     song = Song("dople")
     verses = [
         Verse("holalalala", VerseType.chorus),
@@ -262,7 +378,8 @@ if __name__ == "__main__":
         
     print(choruses)
 
-
+    # Chords.A = Chord('A')
+    # Chord('A', guitar_position=base/barre)
     tunes = [
         Tune().node.extend(
             [
@@ -280,11 +397,33 @@ if __name__ == "__main__":
 
     print(tunes)
 
-    # song,verse.chorus
-    # song.verse.verse
-    # song.verse[1]
-
     ver0 = song.verse.one
     ver0.node.extend(tunes)
     print(ver0.node.str)
 
+    
+    print('\n song.chorus')
+    print(song.chorus.node.nodes)
+    print(song.chorus.node.node_names)
+    # song.v
+    assert song.chorus.first == song.verse.chorus.first
+    assert song.verse.verse.first == song.verse.first
+
+    verses = song.verse.every
+    for verse in verses:
+        print(verse._node_index, verse)
+
+    print('first verse')
+    print(song.verse[0])
+    print('last verse')
+    print(song.verse[-1])
+
+def test_song_parser():
+    fname = 'lyric.txt'
+    with open(fname, 'r') as fil:
+        text = fil.read()
+    song = Song.factory.from_text(text)
+    
+if __name__ == "__main__":
+    # test_node()
+    test_song_parser()
