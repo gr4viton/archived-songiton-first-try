@@ -1,3 +1,8 @@
+
+# the project restarted
+
+The project restarted under new structure - [songiton](https://github.com/gr4viton/songiton).
+
 # Songiton
 
 the elemental particle of any song
